@@ -12,6 +12,10 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
 
 import javax.sound.sampled.*;
 import java.util.Arrays;
@@ -25,8 +29,12 @@ public class BackgroundIndicatorWidget extends Application {
     @Override
     public void start(Stage primaryStage) throws LineUnavailableException {
 
-        intializeApplication();
+        intializeApplication(primaryStage);
 
+
+    }
+
+    private void loadWidget(Stage primaryStage) {
         // Create a label for the indicator
         Label indicatorLabel = new Label("App Running");
         indicatorLabel.setStyle("-fx-background-color: #00cc44; -fx-text-fill: white; -fx-padding: 10px; " +
@@ -84,11 +92,13 @@ public class BackgroundIndicatorWidget extends Application {
         primaryStage.show();
     }
 
-    private void intializeApplication() throws LineUnavailableException {
-        //Get user customize data using API call
+
+    private void intializeApplication(Stage primaryStage) throws LineUnavailableException {
+
+        // GET call for user details
+        loadWidget(primaryStage);
 
         // if mic available then use existing if not then use first available
-
         TargetDataLine targetDataLine = null;
         List<Mixer> aLlAvailableMics = RecordingUtils.getALlAvailableMics();
         if(!aLlAvailableMics.isEmpty()) {
@@ -99,6 +109,70 @@ public class BackgroundIndicatorWidget extends Application {
 
         RecordingState.getInstance().changeMicrophone(targetDataLine);
     }
+
+    private void validateStoredUser(Stage primaryStage) {
+        String email = UserPersistence.loadUser();
+        boolean isValid = checkUserValidity(email);
+
+        if (!isValid) {
+            UserPersistence.clearUser();
+            loadLoginScreen(primaryStage);
+        }
+    }
+
+    private boolean checkUserValidity(String email) {
+        return "admin@example.com".equals(email);
+    }
+
+
+    private void loadLoginScreen(Stage primaryStage) {
+        VBox root = new VBox(10);
+        root.setStyle("-fx-padding: 20; -fx-alignment: center;");
+
+        Label titleLabel = new Label("Login");
+        titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+
+        TextField emailField = new TextField();
+        emailField.setPromptText("Enter email");
+
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Enter password");
+
+        Label errorLabel = new Label();
+        errorLabel.setStyle("-fx-text-fill: red;");
+
+        Button loginButton = new Button("Login");
+        loginButton.setOnAction(e -> {
+            String email = emailField.getText();
+            String password = passwordField.getText();
+
+            if (email.isEmpty() || password.isEmpty()) {
+                errorLabel.setText("Fields cannot be empty!");
+                return;
+            }
+
+            LoginDTO loginDTO = new LoginDTO(email, password);
+            boolean success = sendLoginRequest(loginDTO);
+
+            if (success) {
+                UserPersistence.saveUser(email); // Save user data
+            } else {
+                errorLabel.setText("Invalid email or password.");
+            }
+        });
+
+        root.getChildren().addAll(titleLabel, emailField, passwordField, loginButton, errorLabel);
+        Scene scene = new Scene(root, 300, 250);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Login");
+        primaryStage.show();
+    }
+
+    private boolean sendLoginRequest(LoginDTO loginDTO) {
+        // Simulating API call (Replace this with actual HTTP request)
+        return "admin@example.com".equals(loginDTO.getEmail()) && "password".equals(loginDTO.getPassword());
+    }
+
 
     /**
      * Toggles the recording between start and stop.

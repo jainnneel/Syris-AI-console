@@ -15,14 +15,13 @@ public class RecordingState {
     private volatile boolean isRecording = false; // Instance variable
 
     // Private constructor to prevent instantiation
-    private RecordingState(TargetDataLine targetDataLine) {
-        this.targetDataLine = targetDataLine;
+    private RecordingState() {
     }
 
     // Public method to get the singleton instance
     public static synchronized RecordingState getInstance() {
         if (instance == null) {
-//            instance = new RecordingState();
+            instance = new RecordingState();
         }
         return instance;
     }
