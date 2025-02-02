@@ -1,0 +1,27 @@
+.tab-pane {
+    -fx-tab-min-width: 150px;
+    -fx-tab-max-width: 150px;
+    -fx-tab-min-height: 30px;
+    -fx-tab-max-height: 30px;
+}
+
+.label {
+    -fx-font-size: 14px;
+    -fx-padding: 5 0 5 0;
+}
+
+.combo-box {
+    -fx-pref-width: 300px;
+}
+
+.check-box {
+    -fx-padding: 10 0 0 0;
+}
+
+.slider {
+    -fx-pref-width: 400px;
+}
+
+.grid-pane {
+    -fx-padding: 10 0 0 0;
+}
