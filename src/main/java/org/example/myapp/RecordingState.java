@@ -33,10 +33,11 @@ public class RecordingState {
     public void toggleRecording() {
         if (isRecording) {
             // Add logic for stopping the recording
+            RecordingUtils.stopRecording();
 
         } else {
             // Add logic for starting the recording
-
+            RecordingUtils.startRecording();
         }
         isRecording = !isRecording;
     }

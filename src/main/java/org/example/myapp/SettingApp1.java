@@ -332,7 +332,6 @@ public class SettingApp1 extends Application{
 
     private void startMicMonitoring(String selectedMic, ProgressBar micInputProgress, Mixer.Info[] mixers) {
         // Stop any currently running microphone
-        System.out.println("DSADSADADsa");
         if (currentLine != null && currentLine.isOpen()) {
             currentLine.stop();
             currentLine.close();
@@ -351,7 +350,6 @@ public class SettingApp1 extends Application{
             System.out.println(selectedMixer);
 
             if (selectedMixer != null) {
-                System.out.println("DSADSADADsa");
                 // Configure and open the TargetDataLine
                 AudioFormat format = new AudioFormat(44100.0f, 16, 1, true, true);
                 DataLine.Info lineInfo = new DataLine.Info(TargetDataLine.class, format);
@@ -366,8 +364,6 @@ public class SettingApp1 extends Application{
                         int bytesRead = currentLine.read(buffer, 0, buffer.length);
 
                         if (bytesRead > 0) {
-
-                            System.out.println("DSADSADADsa");
 
                             // Calculate the RMS (Root Mean Square) of the audio data
                             double rms = calculateRMS(buffer, bytesRead);

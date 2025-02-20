@@ -12,13 +12,14 @@ import java.util.concurrent.Executors;
 
 public class RecordingUtils {
 
-    private static final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static ExecutorService executor = Executors.newSingleThreadExecutor();
 
     /**
      * Starts audio recording.
      */
-    public void startRecording() {
+    public static void startRecording() {
         try {
+            executor = Executors.newSingleThreadExecutor();
             TargetDataLine targetDataLine = getTargetedDataLine();
             targetDataLine.open(targetDataLine.getFormat());
             targetDataLine.start();
@@ -30,13 +31,6 @@ public class RecordingUtils {
                     while (RecordingState.getInstance().isRecording()) {
                         int bytesRead = targetDataLine.read(buffer, 0, buffer.length);
                         System.out.println(bytesRead);
-
-                        double rms = calculateRMS(buffer, bytesRead);
-
-                        // Update the progress bar on the JavaFX Application Thread
-//                        Platform.runLater(() -> micInputProgress.setProgress(rms));
-
-                        // Here, you would normally process or save the recorded data
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
