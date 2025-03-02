@@ -6,19 +6,17 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
 
 import javax.sound.sampled.*;
-import java.util.Arrays;
 import java.util.List;
 
 public class BackgroundIndicatorWidget extends Application {
@@ -28,72 +26,48 @@ public class BackgroundIndicatorWidget extends Application {
 
     @Override
     public void start(Stage primaryStage) throws LineUnavailableException {
-
-        intializeApplication(primaryStage);
-
-
+        initializeApplication(primaryStage);
     }
 
     private void loadWidget(Stage primaryStage) {
-        // Create a label for the indicator
-        Label indicatorLabel = new Label("App Running");
-        indicatorLabel.setStyle("-fx-background-color: #00cc44; -fx-text-fill: white; -fx-padding: 10px; " +
-                "-fx-font-size: 14px; -fx-background-radius: 10; -fx-cursor: hand;");
+        // Create a rounded background pane
+        StackPane background = new StackPane();
+        background.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-background-radius: 15; -fx-padding: 10px;");
 
-        // Create the start/stop recording button inside the indicator
+        // Indicator label
+        Label indicatorLabel = new Label("● App Running");
+        indicatorLabel.setStyle("-fx-text-fill: #00cc44; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        // Recording Button
         Button recordButton = new Button("Start Recording");
-        recordButton.setStyle("-fx-background-color: #ffcc00; -fx-text-fill: white; -fx-font-size: 12px; " +
-                "-fx-padding: 5px; -fx-background-radius: 5;");
+        recordButton.setStyle("-fx-background-color: #ffcc00; -fx-text-fill: black; -fx-font-size: 12px; " +
+                "-fx-padding: 7px 14px; -fx-background-radius: 20;");
+//        recordButton.setOnMouseEntered(e -> recordButton.setStyle("-fx-background-color: #ffaa00; -fx-text-fill: black;"));
+//        recordButton.setOnMouseExited(e -> recordButton.setStyle("-fx-background-color: #ffcc00; -fx-text-fill: black;"));
+        recordButton.setOnAction(e -> toggleRecording(recordButton, indicatorLabel));
 
-        // Create the context menu with two items
-        ContextMenu contextMenu = new ContextMenu();
+        // Settings Icon (instead of text menu)
+        Circle settingsButton = new Circle(10, Color.LIGHTGRAY);
+        settingsButton.setOnMouseClicked(e -> showContextMenu(settingsButton, e, primaryStage));
 
-        // Option 1: Open Scene
-        MenuItem openSceneItem = new MenuItem("Settings");
-        openSceneItem.setOnAction(event -> new SettingApp1().showConsole());
+        HBox container = new HBox(10, indicatorLabel, recordButton, settingsButton);
+        container.setStyle("-fx-alignment: center-left;");
 
-        // Option 2: Close Application
-        MenuItem closeAppItem = new MenuItem("quit");
-        closeAppItem.setOnAction(event -> System.exit(0));
+        background.getChildren().add(container);
 
-        // Add items to the context menu
-        contextMenu.getItems().addAll(openSceneItem, closeAppItem);
-
-        // Show the context menu on right-click
-        indicatorLabel.setOnContextMenuRequested(event -> contextMenu.show(indicatorLabel, event.getScreenX(), event.getScreenY()));
-
-        // Handle record button action (Start and Stop recording)
-        recordButton.setOnAction(event -> toggleRecording(recordButton));
-
-        // Create a HBox to hold the label and button
-        HBox container = new HBox(indicatorLabel, recordButton);
-        container.setSpacing(5);
-        container.setStyle("-fx-alignment: center;");
-
-        StackPane root = new StackPane(container);
-        root.setStyle("-fx-background-color: transparent;");
-
-        // Create a transparent scene
-        Scene scene = new Scene(root, 200, 50);
+        Scene scene = new Scene(background, 270, 60);
         scene.setFill(Color.TRANSPARENT);
 
-        // Configure the stage
-        primaryStage.initStyle(StageStyle.TRANSPARENT); // Transparent window
-        primaryStage.setAlwaysOnTop(true); // Always on top
+        primaryStage.initStyle(StageStyle.TRANSPARENT);
+        primaryStage.setAlwaysOnTop(true);
         primaryStage.setScene(scene);
 
-        // Make the widget draggable
-        makeDraggable(primaryStage, root);
-
-        // Position the widget at the top-right corner
-        positionStage(primaryStage);
-
-        // Show the widget
+        makeDraggable(primaryStage, background);
         primaryStage.show();
+
     }
 
-
-    private void intializeApplication(Stage primaryStage) throws LineUnavailableException {
+    private void initializeApplication(Stage primaryStage) throws LineUnavailableException {
 
         // GET call for user details
         loadWidget(primaryStage);
@@ -110,80 +84,44 @@ public class BackgroundIndicatorWidget extends Application {
         RecordingState.getInstance().changeMicrophone(targetDataLine);
     }
 
-    private void validateStoredUser(Stage primaryStage) {
-        String email = UserPersistence.loadUser();
-        boolean isValid = checkUserValidity(email);
+    private void showContextMenu(Circle settingsButton, MouseEvent event, Stage stage) {
+        ContextMenu contextMenu = new ContextMenu();
+        MenuItem settingsItem = new MenuItem("Settings");
+        settingsItem.setOnAction(e -> new SettingApp1().showConsole());
 
-        if (!isValid) {
-            UserPersistence.clearUser();
-            loadLoginScreen(primaryStage);
-        }
-    }
+        MenuItem logoutItem = new MenuItem("Logout");
+        logoutItem.setOnAction(event1 -> {
+            UserPersistence.clearUser();  // Clear saved user data
+            stage.close();
 
-    private boolean checkUserValidity(String email) {
-        return "admin@example.com".equals(email);
-    }
-
-
-    private void loadLoginScreen(Stage primaryStage) {
-        VBox root = new VBox(10);
-        root.setStyle("-fx-padding: 20; -fx-alignment: center;");
-
-        Label titleLabel = new Label("Login");
-        titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
-
-        TextField emailField = new TextField();
-        emailField.setPromptText("Enter email");
-
-        PasswordField passwordField = new PasswordField();
-        passwordField.setPromptText("Enter password");
-
-        Label errorLabel = new Label();
-        errorLabel.setStyle("-fx-text-fill: red;");
-
-        Button loginButton = new Button("Login");
-        loginButton.setOnAction(e -> {
-            String email = emailField.getText();
-            String password = passwordField.getText();
-
-            if (email.isEmpty() || password.isEmpty()) {
-                errorLabel.setText("Fields cannot be empty!");
-                return;
-            }
-
-            LoginDTO loginDTO = new LoginDTO(email, password);
-            boolean success = sendLoginRequest(loginDTO);
-
-            if (success) {
-                UserPersistence.saveUser(email); // Save user data
-            } else {
-                errorLabel.setText("Invalid email or password.");
-            }
+            new LoginScreen().loadLoginScreen(new Stage());  // Redirect to login screen
         });
 
-        root.getChildren().addAll(titleLabel, emailField, passwordField, loginButton, errorLabel);
-        Scene scene = new Scene(root, 300, 250);
-        primaryStage.setScene(scene);
-        primaryStage.setTitle("Login");
-        primaryStage.show();
-    }
+        MenuItem quitItem = new MenuItem("Quit");
+        quitItem.setOnAction(e -> System.exit(0));
 
-    private boolean sendLoginRequest(LoginDTO loginDTO) {
-        // Simulating API call (Replace this with actual HTTP request)
-        return "admin@example.com".equals(loginDTO.getEmail()) && "password".equals(loginDTO.getPassword());
+        contextMenu.getItems().addAll(settingsItem, logoutItem, quitItem);
+        contextMenu.show(settingsButton, event.getScreenX(), event.getScreenY());
     }
-
 
     /**
      * Toggles the recording between start and stop.
      *
      * @param recordButton The button that starts/stops recording.
      */
-    private void toggleRecording(Button recordButton) {
+    private void toggleRecording(Button recordButton, Label indicatorLabel) {
         if (RecordingState.getInstance().isRecording()) {
             recordButton.setText("Start Recording");
+            recordButton.setStyle("-fx-background-color: #ffcc00; -fx-text-fill: black; -fx-font-size: 12px; " +
+                    "-fx-padding: 7px 14px; -fx-background-radius: 20;");
+            indicatorLabel.setText("● Syris-AI");
+            indicatorLabel.setStyle("-fx-text-fill: #00cc44;");
         } else {
             recordButton.setText("Stop Recording");
+            recordButton.setStyle("-fx-background-color: #ffcc00; -fx-text-fill: black; -fx-font-size: 12px; " +
+                    "-fx-padding: 7px 14px; -fx-background-radius: 20;");
+            indicatorLabel.setText("● Recording...");
+            indicatorLabel.setStyle("-fx-text-fill: #00cc44;");
         }
 
         RecordingState.getInstance().toggleRecording();

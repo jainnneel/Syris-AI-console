@@ -347,7 +347,7 @@ public class SettingApp1 extends Application{
                 }
             }
 
-            System.out.println(selectedMixer);
+            System.out.println(selectedMixer.getMixerInfo());
 
             if (selectedMixer != null) {
                 // Configure and open the TargetDataLine
@@ -360,7 +360,7 @@ public class SettingApp1 extends Application{
 
                 executor.submit(() -> {
                     byte[] buffer = new byte[1024];
-                    while (currentLine.isOpen()) {
+                    while (RecordingState.getInstance().isRecording() && currentLine.isOpen()) {
                         int bytesRead = currentLine.read(buffer, 0, buffer.length);
 
                         if (bytesRead > 0) {
