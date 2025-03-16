@@ -1,9 +1,8 @@
-module org.example.myapp {
+module ai.syris.app {
     requires javafx.graphics;
     requires javafx.controls;
     requires java.desktop;
-    requires static lombok;
-    requires org.apache.commons.io;
     requires com.fasterxml.jackson.databind;
-    exports org.example.myapp;
+    requires javax.websocket.api;
+    exports ai.syris.app;
 }
