@@ -11,6 +11,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -25,6 +26,7 @@ public class BackgroundIndicatorWidget extends Application {
 
     private double offsetX;
     private double offsetY;
+    private String username = "Neel"; // Default username, can be updated from settings
 
     @Override
     public void start(Stage primaryStage) throws LineUnavailableException {
@@ -34,77 +36,132 @@ public class BackgroundIndicatorWidget extends Application {
             throw new RuntimeException(e);
         }
     }
-    static ImageView imageView = new ImageView();
-    static ImageView logo = new ImageView();
 
-    static Button recordButton = new Button("", imageView);
-    static Label indicatorLabel = new Label("Syris AI", logo);
+    static ImageView userIconView = new ImageView();
+    static Label usernameLabel = new Label();
+    static Label micStatusLabel = new Label();
     static ContextMenu contextMenu = new ContextMenu();
+    static Separator progressBar = new Separator();
 
     private void loadWidget(Stage primaryStage) throws FileNotFoundException {
         // Create a rounded background pane
         StackPane background = new StackPane();
-        background.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-background-radius: 15; -fx-padding: 10px;");
+        background.setStyle("-fx-background-color: rgba(64, 64, 64, 0.9); -fx-background-radius: 25; -fx-padding: 10px;");
 
-        logo.setImage(new Image("logo.png", 40,40,true,true));
+        // User icon (logo)
+        userIconView.setImage(new Image("logo.png", 60, 60, true, true));
 
-        imageView.setImage(new Image("icons8-play-record-30.png"));
-        // Indicator label
-        indicatorLabel.setStyle("-fx-text-fill: #00cc44; -fx-font-size: 14px; -fx-font-weight: bold;");
+        // Username label
+        usernameLabel.setText(username);
+        usernameLabel.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
 
-        // Recording Button
-        recordButton.setStyle("-fx-background-color: #ffcc00; -fx-text-fill: black; -fx-font-size: 12px; " +
-                "-fx-background-radius: 20;");
-        recordButton.setOnAction(e -> toggleRecording());
+        // Mic status label
+        micStatusLabel.setText("Tap to switch Mic On");
+        micStatusLabel.setStyle("-fx-text-fill: #48D1CC; -fx-font-size: 14px;");
 
-        // Settings Icon (instead of text menu)
-        Image menuImage = new Image("icons8-menu-vertical-20.png");
-        ImageView imageView = new ImageView(menuImage);
-        Button menuButton = new Button("", imageView);
-        menuButton.setMaxWidth(5);
+        // Progress bar (as separator line)
+        progressBar.setPrefWidth(200);
+        progressBar.setStyle("-fx-background: #48D1CC;");
+
+        // Create a vertical box for the username, mic status, and progress bar
+        VBox userInfoBox = new VBox(5);
+        userInfoBox.getChildren().addAll(usernameLabel, progressBar, micStatusLabel);
+        userInfoBox.setAlignment(Pos.CENTER_LEFT);
+
+        // Settings/Menu button with hamburger menu styling in a cyan rectangle
+        Button menuButton = new Button("");
+        ImageView menuIcon = new ImageView(new Image("hamburger-menu.png", 24, 24, true, true));
+        menuButton.setGraphic(menuIcon);
+        menuButton.setStyle(" -fx-background-radius: 5; -fx-padding: 5;");
         menuButton.setOnMouseClicked(e -> showContextMenu(menuButton, e, primaryStage));
 
-        HBox container = new HBox(10, indicatorLabel, recordButton, menuButton);
-        container.setAlignment(Pos.CENTER_LEFT);
+        // Apply custom CSS to style the context menu
+        String contextMenuCss =
+                ".context-menu {" +
+                        "    -fx-background-color: white;" +
+                        "    -fx-background-radius: 0;" +
+                        "    -fx-border-color: #CCCCCC;" +
+                        "    -fx-border-width: 0.5;" +
+                        "    -fx-padding: 0;" +
+                        "}" +
+                        ".menu-item {" +
+                        "    -fx-padding: 8 16 8 16;" +
+                        "}" +
+                        ".menu-item .label {" +
+                        "    -fx-text-fill: black;" +
+                        "}";
 
-        HBox.setMargin(indicatorLabel, new Insets(5, 10, 5, 3));
-        HBox.setMargin(recordButton, new Insets(5, 10, 5, 10));
-        HBox.setMargin(menuButton, new Insets(5, 0, 5, 10));
+        contextMenu.getStyleClass().add("custom-context-menu");
+
+        // Main container
+        HBox container = new HBox(15);
+        container.setAlignment(Pos.CENTER_LEFT);
+        container.setPadding(new Insets(5, 10, 5, 10));
+
+        // Add components to container
+        container.getChildren().addAll(userIconView, userInfoBox);
+
+        // Add spacer to push menu button to the right
+        Region spacer = new Region();
+        spacer.setPrefWidth(50);
+        HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+        container.getChildren().addAll(spacer, menuButton);
+
+        // Make the user icon/area clickable to toggle recording
+        userIconView.setOnMouseClicked(e -> toggleRecording());
 
         background.getChildren().add(container);
 
         Scene scene = new Scene(background);
+        scene.getStylesheets().add(createStyleSheet(contextMenuCss));
         scene.setFill(Color.TRANSPARENT);
 
         primaryStage.initStyle(StageStyle.TRANSPARENT);
         primaryStage.setAlwaysOnTop(true);
         primaryStage.setScene(scene);
+        primaryStage.setWidth(350);
 
         makeDraggable(primaryStage, background);
         primaryStage.show();
+    }
 
+    private String createStyleSheet(String css) {
+        try {
+            java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("context-menu-style", ".css");
+            java.nio.file.Files.write(tempFile, css.getBytes());
+            return tempFile.toUri().toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     private void initializeApplication(Stage primaryStage) throws LineUnavailableException, FileNotFoundException {
-
         loadWidget(primaryStage);
 
-//        TargetDataLine targetDataLine = null;
-//        List<Mixer> aLlAvailableMics = RecordingUtils.getALlAvailableMics();
-//        if(!aLlAvailableMics.isEmpty()) {
-//            targetDataLine = (TargetDataLine) aLlAvailableMics.get(0).getLine(new DataLine.Info(TargetDataLine.class, new AudioFormat(44100.0f, 16, 1, true, true)));
-//        } else {
-//            // No mics available
-//        }
-//
-//        RecordingState.getInstance().changeMicrophone(targetDataLine);
+        // Commented out the original microphone setup code
+        // This would be restored when implementing the actual functionality
+        /*
+        TargetDataLine targetDataLine = null;
+        List<Mixer> aLlAvailableMics = RecordingUtils.getALlAvailableMics();
+        if(!aLlAvailableMics.isEmpty()) {
+            targetDataLine = (TargetDataLine) aLlAvailableMics.get(0).getLine(new DataLine.Info(TargetDataLine.class, new AudioFormat(44100.0f, 16, 1, true, true)));
+        } else {
+            // No mics available
+        }
+
+        RecordingState.getInstance().changeMicrophone(targetDataLine);
+        */
     }
 
     private void showContextMenu(Button settingsButton, MouseEvent event, Stage stage) {
         contextMenu.getItems().clear();
         contextMenu.hide();
         Stage settingStage = new Stage();
+
+        // Create custom-styled menu items
         MenuItem settingsItem = new MenuItem("Settings");
+        settingsItem.setStyle(" -fx-font-weight: bold;");
         settingsItem.setOnAction(e -> new SettingScreen().showConsole(settingStage));
 
         MenuItem logoutItem = new MenuItem("Logout");
@@ -116,10 +173,22 @@ public class BackgroundIndicatorWidget extends Application {
         });
 
         MenuItem quitItem = new MenuItem("Quit");
+        quitItem.setStyle("-fx-text-fill: #8B0000;");
         quitItem.setOnAction(e -> System.exit(0));
 
-        contextMenu.getItems().addAll(settingsItem, logoutItem, quitItem);
-        contextMenu.show(settingsButton, event.getScreenX(), event.getScreenY());
+        // Add separators for visual distinction
+        SeparatorMenuItem separator1 = new SeparatorMenuItem();
+        SeparatorMenuItem separator2 = new SeparatorMenuItem();
+
+        contextMenu.getItems().addAll(settingsItem, separator1, logoutItem, separator2, quitItem);
+
+        // Style the context menu
+        contextMenu.setStyle("-fx-background-color: white; -fx-background-radius: 0; -fx-border-color: #CCCCCC; -fx-border-width: 0.5;");
+
+        // Show the menu below the button
+        double x = settingsButton.localToScreen(settingsButton.getBoundsInLocal()).getMinX();
+        double y = settingsButton.localToScreen(settingsButton.getBoundsInLocal()).getMaxY();
+        contextMenu.show(settingsButton, x, y);
     }
 
     /**
@@ -127,15 +196,19 @@ public class BackgroundIndicatorWidget extends Application {
      */
     public static void toggleRecording() {
         if (RecordingState.getInstance().isRecording()) {
-            imageView.setImage(new Image("icons8-play-record-30.png"));
-            indicatorLabel.setStyle("-fx-text-fill: #00cc44; -fx-font-size: 14px; -fx-font-weight: bold;");
+            micStatusLabel.setText("Tap to switch Mic On");
+            userIconView.setOpacity(1.0);
+            progressBar.setVisible(true);
+            progressBar.setStyle("-fx-background: #48D1CC;");
             RecordingState.getInstance().toggleRecording();
         } else {
             if (Objects.isNull(RecordingState.getInstance().getTargetDataLine())) {
                 alertDialog();
             } else {
-                imageView.setImage(new Image("icons8-block-microphone-30.png"));
-                indicatorLabel.setStyle("-fx-text-fill: #00cc44; -fx-font-size: 14px; -fx-font-weight: bold;");
+                micStatusLabel.setText("Recording... Tap to stop");
+                userIconView.setOpacity(0.7); // Visual indication of active recording
+                progressBar.setVisible(true);
+                progressBar.setStyle("-fx-background: #00CC44;"); // Active recording color
                 RecordingState.getInstance().toggleRecording();
             }
         }
@@ -160,11 +233,12 @@ public class BackgroundIndicatorWidget extends Application {
     }
 
     /**
-     * Toggles the recording between start and stop.
+     * Stops recording and updates UI.
      */
     public static void stopRecoding() {
-        imageView.setImage(new Image("icons8-play-record-30.png"));
-        indicatorLabel.setStyle("-fx-text-fill: #00cc44; -fx-font-size: 14px; -fx-font-weight: bold;");
+        micStatusLabel.setText("Tap to switch Mic On");
+        userIconView.setOpacity(1.0);
+        progressBar.setStyle("-fx-background: #48D1CC;");
     }
 
     /**

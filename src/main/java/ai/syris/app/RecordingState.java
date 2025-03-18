@@ -7,7 +7,7 @@ public class RecordingState {
 
     private static RecordingState instance; // Singleton instance
 
-    private TargetDataLine targetDataLine; // Instance variable
+    private String targetDataLine; // Instance variable
     private volatile boolean isRecording = false; // Instance variable
 
     // Private constructor to prevent instantiation
@@ -22,10 +22,13 @@ public class RecordingState {
         return instance;
     }
 
-    public void changeMicrophone(TargetDataLine targetDataLine) {
+    public void changeMicrophone(String targetDataLine) {
         this.targetDataLine = targetDataLine;
-        RecordingUtils.stopRecording();
-        RecordingUtils.startRecording();
+        if (isRecording)
+        {
+            RecordingUtils.stopRecording();
+            RecordingUtils.startRecording();
+        }
     }
 
     public void toggleRecording() {
@@ -40,7 +43,7 @@ public class RecordingState {
         isRecording = !isRecording;
     }
 
-    public TargetDataLine getTargetDataLine() {
+    public String getTargetDataLine() {
         return targetDataLine;
     }
 

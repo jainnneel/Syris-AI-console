@@ -15,11 +15,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static javax.websocket.ContainerProvider.getWebSocketContainer;
 import static ai.syris.app.BackgroundIndicatorWidget.stopRecoding;
+import static ai.syris.app.SettingScreen.updateProgressBar;
+import static javax.websocket.ContainerProvider.getWebSocketContainer;
 
 @ClientEndpoint
 public class AudioWebSocketClient {
@@ -87,8 +89,8 @@ public class AudioWebSocketClient {
     @OnClose
     public void onClose(Session session, CloseReason reason) {
         System.out.println("Connection closed: " + reason);
-        RecordingState.getInstance().getTargetDataLine().stop();
-        RecordingState.getInstance().getTargetDataLine().close();
+        microphone.stop();
+        microphone.close();
         try {
             opeenSession.close();
             microphone.close();
@@ -101,22 +103,40 @@ public class AudioWebSocketClient {
 
     private void captureAndSendAudio() {
         try {
-//            AudioFormat format = new AudioFormat(DEVICE_RATE, 16, 1, true, false);
-            microphone = RecordingState.getInstance().getTargetDataLine();
-//            microphone.open(format);
-//            microphone.start();
+            Mixer.Info[] mixers = AudioSystem.getMixerInfo();
+
+            // Find the selected microphone
+            Mixer selectedMixer = null;
+
+            for (Mixer.Info mixerInfo : mixers) {
+                if ((mixerInfo.getName() + " (" + mixerInfo.getDescription() + ")").equals(RecordingState.getInstance().getTargetDataLine())) {
+                    selectedMixer = AudioSystem.getMixer(mixerInfo);
+                    break;
+                }
+            }
+
+            AudioFormat format = new AudioFormat(DEVICE_RATE, 16, 1, true, false);
+            DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
+            if (!AudioSystem.isLineSupported(info)) {
+                System.err.println("Line not supported");
+                return;
+            }
+
+            microphone = (TargetDataLine) selectedMixer.getLine(info);
+            microphone.open(format);
+            microphone.start();
+
             byte[] buffer = new byte[CHUNK_SIZE * 2];
-            System.out.println(microphone.isActive());
+
             System.out.println("Sending audio...");
             while (opeenSession.isOpen()) {
                 int bytesRead = microphone.read(buffer, 0, buffer.length);
-                if (!isSilent(buffer, 0.01)) {
-                    if (bytesRead > 0) {
-                        byte[] resampled = resample(buffer, DEVICE_RATE, TARGET_RATE);
-                        opeenSession.getBasicRemote().sendBinary(ByteBuffer.wrap(resampled));
-                    }
+                if (bytesRead > 0) {
+                    byte[] resampled = resample(buffer, DEVICE_RATE, TARGET_RATE);
+                    updateProgressBar(calculateRMS(buffer, bytesRead));
+                    opeenSession.getAsyncRemote().sendBinary(ByteBuffer.wrap(resampled));
                 }
-                Thread.sleep(100);
+                Thread.sleep(10);
             }
         } catch (Exception e) {
             System.out.println("Connection has been closed.");
@@ -127,17 +147,6 @@ public class AudioWebSocketClient {
             }
         }
     }
-
-    public static boolean isSilent(byte[] audioData, double threshold) {
-        double sum = 0;
-        for (byte b : audioData) {
-            sum += b * b;
-        }
-        double rms = Math.sqrt(sum / audioData.length);
-        return false;
-//        return rms < threshold; // If RMS is below the threshold, consider it silent
-    }
-
 
     private byte[] resample(byte[] audioData, int srcRate, int targetRate) {
         try {
@@ -166,5 +175,17 @@ public class AudioWebSocketClient {
             e.printStackTrace();
             return audioData; // Return original if resampling fails
         }
+    }
+
+    private double calculateRMS(byte[] buffer, int bytesRead) {
+        long sum = 0;
+        for (int i = 0; i < bytesRead - 1; i += 2) {
+            // Convert two bytes to a single audio sample (16-bit PCM)
+            int sample = (buffer[i + 1] << 8) | (buffer[i] & 0xFF);
+            sum += sample * sample;
+        }
+
+        double rms = Math.sqrt(sum / (bytesRead / 2.0));
+        return Math.min(rms / 32768.0, 1.0); // Normalize to 0.0 - 1.0
     }
 }

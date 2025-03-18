@@ -1,6 +1,6 @@
 package ai.syris.app;
 
-public class ParentDTO {
+public class ConfigDTO {
     private GeneralSettingsDTO generalSettings = new GeneralSettingsDTO();
     private AudioSettingsDTO audioSettings = new AudioSettingsDTO();
     private KeyboardShortcutsDTO keyboardShortcuts = new KeyboardShortcutsDTO();

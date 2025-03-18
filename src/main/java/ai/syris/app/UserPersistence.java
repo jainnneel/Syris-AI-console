@@ -10,6 +10,16 @@ public class UserPersistence {
 
     private static final String USER_FILE = "user.json";
 
+    private static User currentLoginUser = null;
+
+    public static User getCurrentLoginUser() {
+        return currentLoginUser;
+    }
+
+    public static void setCurrentLoginUser(User currentLoginUser) {
+        UserPersistence.currentLoginUser = currentLoginUser;
+    }
+
     public static void saveUser(String email) {
         ObjectMapper mapper = new ObjectMapper();
         try {
@@ -27,7 +37,7 @@ public class UserPersistence {
 
             if (fileInputStream.available() > 0) {
                 User user = mapper.readValue(fileInputStream, User.class);
-                return user.getEmail();
+                return user.getUsername();
             }
         } catch (IOException e) {
             e.printStackTrace();

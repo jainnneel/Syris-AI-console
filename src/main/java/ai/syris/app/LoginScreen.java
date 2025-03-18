@@ -1,5 +1,6 @@
 package ai.syris.app;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -14,8 +15,10 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.scene.control.*;
+import okhttp3.*;
 
 import javax.sound.sampled.*;
+import java.io.IOException;
 
 
 public class LoginScreen extends Application {
@@ -44,8 +47,33 @@ public class LoginScreen extends Application {
         }
     }
 
-    private boolean checkUserValidity(String email) {
-        return "admin".equals(email);
+    private boolean checkUserValidity(String token) {
+        OkHttpClient client = new OkHttpClient();
+
+        // Build Request
+        Request request = new Request.Builder()
+                .url("http://localhost:8080/api/users/current") // Change URL if needed
+                .addHeader("Authorization", "Bearer "+token)
+                .build();
+
+        // Execute Request
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                System.out.println("Request failed: " + response.code());
+                return false;
+            } else {
+                System.out.println("Response Code: " + response.code());
+
+                String responseJson = response.body().string();
+                System.out.println(responseJson);
+                User user = new ObjectMapper().readValue(responseJson, User.class);
+                UserPersistence.setCurrentLoginUser(user);
+                return true;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     public void loadLoginScreen(Stage primaryStage) {
@@ -126,7 +154,6 @@ public class LoginScreen extends Application {
         boolean success = sendLoginRequest(loginDTO);
 
         if (success) {
-            UserPersistence.saveUser(email);
             try {
                 primaryStage.close();
                 loadMainApp();
@@ -149,17 +176,43 @@ public class LoginScreen extends Application {
     }
 
     private boolean sendLoginRequest(LoginDTO loginDTO) {
+        OkHttpClient client = new OkHttpClient();
 
-        return "admin".equals(loginDTO.getEmail()) && "admin".equals(loginDTO.getPassword());
+        // JSON Request Body
+        String json = "{\"username\":\""+loginDTO.getEmail()+"\", \"password\":\""+loginDTO.getPassword()+"\"}";
+
+        // Create Request Body
+        RequestBody body = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
+
+        // Build Request
+        Request request = new Request.Builder()
+                .url("http://localhost:8080/auth/login") // Change URL if needed
+                .post(body)
+                .build();
+
+        // Execute Request
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                System.out.println("Request failed: " + response.code());
+                return false;
+            } else {
+                System.out.println("Response Code: " + response.code());
+
+                String responseJson = response.body().string();
+                System.out.println(responseJson);
+                AuthResponse authResponse = new ObjectMapper().readValue(responseJson, AuthResponse.class);
+                UserPersistence.saveUser(authResponse.getToken());
+                checkUserValidity(authResponse.getToken());
+                return true;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     private void loadMainApp() throws LineUnavailableException {
         new BackgroundIndicatorWidget().start(new Stage());
-//        Button logoutButton = new Button("Logout");
-//        logoutButton.setOnAction(e -> {
-//            UserPersistence.clearUser();
-//            loadLoginScreen();
-//        });
     }
 
 }
