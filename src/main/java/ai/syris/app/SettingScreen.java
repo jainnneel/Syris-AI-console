@@ -32,7 +32,7 @@ public class SettingScreen {
 
     private final ConfigDTO configDTO = new ConfigDTO();
     private final Button saveButton = new Button("Save");
-    private static ProgressBar micInputProgress = new ProgressBar(0.0);
+    private static ProgressBar micInputProgress;
     private final String ACCENT_COLOR = "#3498db";
     private final String HOVER_COLOR = "#2980b9";
     private final String SIDEBAR_BG_COLOR = "#2c3e50";
@@ -40,6 +40,10 @@ public class SettingScreen {
     private final String SIDEBAR_HOVER_COLOR = "#34495e";
 
     public void showConsole(Stage newStage) {
+        micInputProgress = new ProgressBar(0.1);
+
+        setCurrentUserConfig();
+
         // Create a custom styled navigation panel
         VBox navigationPanel = createEnhancedNavigationPanel();
 
@@ -108,6 +112,34 @@ public class SettingScreen {
 
         // Show the new stage
         newStage.show();
+    }
+
+    private void setCurrentUserConfig() {
+        String url = "http://localhost:8080/api/user-settings/" + UserPersistence.getCurrentLoginUser().getId();
+        OkHttpClient client = new OkHttpClient();
+        ObjectMapper objectMapper = new ObjectMapper(); // Jackson for JSON conversion
+
+        // Build request
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer " + UserPersistence.loadUser())
+                .addHeader("Content-Type", "application/json")
+                .build();
+
+        // Execute request
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected response: " + response);
+            }
+
+            // Parse and return the updated Config object
+            Config config = objectMapper.readValue(response.body().string(), Config.class);
+            configDTO.getGeneralSettings().setRememberPosition(config.isWidgetPosition());
+            configDTO.getGeneralSettings().setWidgetSize(config.getWidgetSize() == null ? configDTO.getGeneralSettings().getDefaultWidgetSize() : config.getWidgetSize());
+            configDTO.getKeyboardShortcuts().setMicToggleShortcut(config.getMicToggleShortcut() == null ? configDTO.getKeyboardShortcuts().getDefaultMicToggleShortcut() : config.getMicToggleShortcut());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private VBox createEnhancedNavigationPanel() {
@@ -280,7 +312,6 @@ public class SettingScreen {
         return menuItem;
     }
 
-    // Class to represent navigation item with content
     private static class NavigationItem {
         String name;
         String icon;
@@ -292,7 +323,6 @@ public class SettingScreen {
             this.contentPane = contentPane;
         }
     }
-
 
     private ListView<String> createStyledSettingsList() {
         ListView<String> settingsList = new ListView<>();
@@ -442,14 +472,14 @@ public class SettingScreen {
 
         micComboBox.setValue("---SELECT MIC---");
 
-        micInputProgress = new ProgressBar(0.1);
         // Input level section
         Label micInputLabel = new Label("Microphone Input Level:");
         micInputLabel.setStyle("-fx-font-size: 14px; -fx-padding: 15 0 5 0;");
 
         // Style the mic progress bar
-        micInputProgress.setPrefWidth(400);
-        micInputProgress.setStyle("-fx-accent: #2ecc71;");
+//        micInputProgress.setPrefWidth(400);
+//        micInputProgress.setStyle("-fx-accent: #2ecc71;");
+        micInputProgress.setVisible(true);
 
         // Add a help text
         Label micLevelHelp = new Label("Speak into your microphone to test the input level");
@@ -489,9 +519,10 @@ public class SettingScreen {
         Label micToggleShortcutLabel = new Label("Microphone Toggle:");
         micToggleShortcutLabel.setStyle("-fx-font-size: 14px;");
 
-        TextField micToggleShortcut = new TextField("F4");
+        TextField micToggleShortcut = new TextField();
         micToggleShortcut.setPrefWidth(150);
         micToggleShortcut.setStyle("-fx-font-size: 14px;");
+        micToggleShortcut.setText(configDTO.getKeyboardShortcuts().getMicToggleShortcut());
 
         // Description
         Label shortcutDescription = new Label("Press this key to quickly toggle your microphone on/off");
@@ -539,38 +570,14 @@ public class SettingScreen {
         specialtyLabel.setStyle("-fx-font-size: 14px;");
 
         ComboBox<String> specialtyComboBox = new ComboBox<>();
-        specialtyComboBox.getItems().addAll("Radiology", "Cardiology", "Neurology", "General Practice");
+        specialtyComboBox.getItems().addAll("Radiology");
         specialtyComboBox.setValue("Radiology");
         specialtyComboBox.setPrefWidth(200);
         specialtyComboBox.setStyle("-fx-font-size: 14px;");
 
-        // Accent setting
-        Label accentLabel = new Label("English accent:");
-        accentLabel.setStyle("-fx-font-size: 14px;");
-
-        ComboBox<String> accentComboBox = new ComboBox<>();
-        accentComboBox.getItems().addAll("Indian English", "US English", "UK English", "Australian English");
-        accentComboBox.setValue("Indian English");
-        accentComboBox.setPrefWidth(200);
-        accentComboBox.setStyle("-fx-font-size: 14px;");
-
-        // Spelling setting
-        Label spellingLabel = new Label("Spelling:");
-        spellingLabel.setStyle("-fx-font-size: 14px;");
-
-        ComboBox<String> spellingComboBox = new ComboBox<>();
-        spellingComboBox.getItems().addAll("UK sp.", "US sp.");
-        spellingComboBox.setValue("UK sp.");
-        spellingComboBox.setPrefWidth(200);
-        spellingComboBox.setStyle("-fx-font-size: 14px;");
-
         // Add to grid
         modelGrid.add(specialtyLabel, 0, 0);
         modelGrid.add(specialtyComboBox, 1, 0);
-        modelGrid.add(accentLabel, 0, 1);
-        modelGrid.add(accentComboBox, 1, 1);
-        modelGrid.add(spellingLabel, 0, 2);
-        modelGrid.add(spellingComboBox, 1, 2);
 
         // Add description
         Label modelDescription = new Label("These settings help Syris AI understand your speech more accurately based on your specialty and accent preferences.");
@@ -725,7 +732,7 @@ public class SettingScreen {
     }
 
     public static void updateProgressBar(double rms) {
-        Platform.runLater(() -> micInputProgress.setProgress(rms));
+        micInputProgress.setProgress(rms);
     }
 
 }

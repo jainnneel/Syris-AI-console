@@ -13,6 +13,7 @@ public class ConfigMapper {
         GeneralSettingsDTO generalSettings = dto.getGeneralSettings();
         if (generalSettings != null) {
             config.setWidgetPosition(generalSettings.isRememberPosition());
+            config.setWidgetSize(dto.getGeneralSettings().getWidgetSize());
             // Assume widgetX & widgetY need to be retrieved from somewhere
             config.setWidgetX(0.0);
             config.setWidgetY(0.0);
@@ -28,6 +29,11 @@ public class ConfigMapper {
         SpeechModelSettingsDTO speechSettings = dto.getSpeechModelSettings();
         if (speechSettings != null) {
             config.setMedicalSpeciality(mapMedicalSpeciality(speechSettings.getSpecialty()));
+        }
+
+        KeyboardShortcutsDTO shortcutsDTO = dto.getKeyboardShortcuts();
+        if(shortcutsDTO != null) {
+            config.setMicToggleShortcut(shortcutsDTO.getMicToggleShortcut());
         }
 
         return config;

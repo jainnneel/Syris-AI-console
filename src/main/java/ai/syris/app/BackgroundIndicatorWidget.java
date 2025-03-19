@@ -1,6 +1,8 @@
 package ai.syris.app;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -15,10 +17,15 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 import javax.sound.sampled.*;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -26,7 +33,7 @@ public class BackgroundIndicatorWidget extends Application {
 
     private double offsetX;
     private double offsetY;
-    private String username = "Neel"; // Default username, can be updated from settings
+    private String username = UserPersistence.getCurrentLoginUser().getUsername();
 
     @Override
     public void start(Stage primaryStage) throws LineUnavailableException {
@@ -42,8 +49,57 @@ public class BackgroundIndicatorWidget extends Application {
     static Label micStatusLabel = new Label();
     static ContextMenu contextMenu = new ContextMenu();
     static Separator progressBar = new Separator();
+    Stage settingStage = new Stage();
+
+    private boolean setCurrentUserConfig() {
+        String url = "http://localhost:8080/api/user-settings/" + UserPersistence.getCurrentLoginUser().getId();
+        OkHttpClient client = new OkHttpClient();
+        ObjectMapper objectMapper = new ObjectMapper(); // Jackson for JSON conversion
+
+        // Build request
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer " + UserPersistence.loadUser())
+                .addHeader("Content-Type", "application/json")
+                .build();
+
+        // Execute request
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected response: " + response);
+            }
+
+            // Parse and return the updated Config object
+            return objectMapper.readValue(response.body().string(), Config.class).isWidgetPosition();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static Position loadUser() {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            FileInputStream fileInputStream = new FileInputStream("position.json");
+
+            if (fileInputStream.available() > 0) {
+                return mapper.readValue(fileInputStream, Position.class);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
 
     private void loadWidget(Stage primaryStage) throws FileNotFoundException {
+
+        if (setCurrentUserConfig())
+        {
+            Position position = loadUser();
+            primaryStage.setX(position.getX());
+            primaryStage.setY(position.getY());
+        }
+
         // Create a rounded background pane
         StackPane background = new StackPane();
         background.setStyle("-fx-background-color: rgba(64, 64, 64, 0.9); -fx-background-radius: 25; -fx-padding: 10px;");
@@ -138,31 +194,22 @@ public class BackgroundIndicatorWidget extends Application {
 
     private void initializeApplication(Stage primaryStage) throws LineUnavailableException, FileNotFoundException {
         loadWidget(primaryStage);
-
-        // Commented out the original microphone setup code
-        // This would be restored when implementing the actual functionality
-        /*
-        TargetDataLine targetDataLine = null;
-        List<Mixer> aLlAvailableMics = RecordingUtils.getALlAvailableMics();
-        if(!aLlAvailableMics.isEmpty()) {
-            targetDataLine = (TargetDataLine) aLlAvailableMics.get(0).getLine(new DataLine.Info(TargetDataLine.class, new AudioFormat(44100.0f, 16, 1, true, true)));
-        } else {
-            // No mics available
-        }
-
-        RecordingState.getInstance().changeMicrophone(targetDataLine);
-        */
     }
 
     private void showContextMenu(Button settingsButton, MouseEvent event, Stage stage) {
         contextMenu.getItems().clear();
         contextMenu.hide();
-        Stage settingStage = new Stage();
 
         // Create custom-styled menu items
         MenuItem settingsItem = new MenuItem("Settings");
         settingsItem.setStyle(" -fx-font-weight: bold;");
-        settingsItem.setOnAction(e -> new SettingScreen().showConsole(settingStage));
+        settingsItem.setOnAction(e -> {
+            if (settingStage.isShowing()) {
+                settingStage.toFront();
+            } else {
+                new SettingScreen().showConsole(settingStage);
+            }
+        });
 
         MenuItem logoutItem = new MenuItem("Logout");
         logoutItem.setOnAction(event1 -> {
@@ -174,7 +221,10 @@ public class BackgroundIndicatorWidget extends Application {
 
         MenuItem quitItem = new MenuItem("Quit");
         quitItem.setStyle("-fx-text-fill: #8B0000;");
-        quitItem.setOnAction(e -> System.exit(0));
+        quitItem.setOnAction(e -> {
+            savePosition(stage.getX(), stage.getY());
+            System.exit(0);
+        });
 
         // Add separators for visual distinction
         SeparatorMenuItem separator1 = new SeparatorMenuItem();
@@ -189,6 +239,16 @@ public class BackgroundIndicatorWidget extends Application {
         double x = settingsButton.localToScreen(settingsButton.getBoundsInLocal()).getMinX();
         double y = settingsButton.localToScreen(settingsButton.getBoundsInLocal()).getMaxY();
         contextMenu.show(settingsButton, x, y);
+    }
+
+    public static void savePosition(double x, double y) {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            Position position = new Position(x, y);
+            mapper.writeValue(new File("position.json"), position);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -212,6 +272,10 @@ public class BackgroundIndicatorWidget extends Application {
                 RecordingState.getInstance().toggleRecording();
             }
         }
+    }
+
+    public static void updateProgressBarWidget(double rms) {
+        Platform.runLater(() -> progressBar.setPrefWidth(rms));
     }
 
     public static void alertDialog(){

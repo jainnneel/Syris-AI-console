@@ -20,6 +20,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static ai.syris.app.BackgroundIndicatorWidget.stopRecoding;
+import static ai.syris.app.BackgroundIndicatorWidget.updateProgressBarWidget;
 import static ai.syris.app.SettingScreen.updateProgressBar;
 import static javax.websocket.ContainerProvider.getWebSocketContainer;
 
@@ -67,11 +68,6 @@ public class AudioWebSocketClient {
         }
         String transcript = jsonNode.get("transcript").asText();
 
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-        StringSelection selection = new StringSelection(transcript);
-        clipboard.setContents(selection, null);
-
-        // Simulate Ctrl + V to paste the copied text
         Robot robot = null;
         try {
             robot = new Robot();
@@ -79,6 +75,23 @@ public class AudioWebSocketClient {
             throw new RuntimeException(e);
         }
         robot.delay(500);
+
+        if (transcript.startsWith("DL-"))
+        {
+            int cnt = Integer.parseInt(transcript.split("-")[1]);
+            for (int i = 0; i < cnt; i++)
+            {
+                robot.keyPress(KeyEvent.VK_CONTROL);
+                robot.keyPress(KeyEvent.VK_BACK_SPACE);
+                robot.keyRelease(KeyEvent.VK_V);
+                robot.keyRelease(KeyEvent.VK_BACK_SPACE);
+            }
+            return;
+        }
+
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        StringSelection selection = new StringSelection(" " + transcript);
+        clipboard.setContents(selection, null);
 
         robot.keyPress(KeyEvent.VK_CONTROL);
         robot.keyPress(KeyEvent.VK_V);
@@ -133,7 +146,9 @@ public class AudioWebSocketClient {
                 int bytesRead = microphone.read(buffer, 0, buffer.length);
                 if (bytesRead > 0) {
                     byte[] resampled = resample(buffer, DEVICE_RATE, TARGET_RATE);
-                    updateProgressBar(calculateRMS(buffer, bytesRead));
+                    double rms = calculateRMS(buffer, bytesRead);
+                    updateProgressBar(rms);
+                    updateProgressBarWidget(rms);
                     opeenSession.getAsyncRemote().sendBinary(ByteBuffer.wrap(resampled));
                 }
                 Thread.sleep(10);

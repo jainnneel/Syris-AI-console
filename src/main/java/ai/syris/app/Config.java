@@ -5,10 +5,12 @@ public class Config {
 
     private Long id;
     private User user;
+    private String widgetSize;
     private boolean widgetPosition;
     private double widgetX;
     private double widgetY;
     private int microphoneVolume;
+    private String micToggleShortcut;
     private BackgroundVoiceSuppression backgroundVoiceSuppression;
     private MedicalSpeciality medicalSpeciality;
     private EnglishAccent englishAccent;
@@ -28,6 +30,22 @@ public class Config {
 
     public enum EnglishSpelling {
         US, UK
+    }
+
+    public String getMicToggleShortcut() {
+        return micToggleShortcut;
+    }
+
+    public void setMicToggleShortcut(String micToggleShortcut) {
+        this.micToggleShortcut = micToggleShortcut;
+    }
+
+    public String getWidgetSize() {
+        return widgetSize;
+    }
+
+    public void setWidgetSize(String widgetSize) {
+        this.widgetSize = widgetSize;
     }
 
     public boolean isWidgetPosition() {
