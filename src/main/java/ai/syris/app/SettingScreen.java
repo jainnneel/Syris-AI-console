@@ -12,6 +12,8 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -40,7 +42,6 @@ public class SettingScreen {
     private final String SIDEBAR_HOVER_COLOR = "#34495e";
 
     public void showConsole(Stage newStage) {
-        micInputProgress = new ProgressBar(0.1);
 
         setCurrentUserConfig();
 
@@ -106,6 +107,8 @@ public class SettingScreen {
         // Create a Scene and set it to the Stage
         Scene scene = new Scene(mainLayout, 900, 650);
 
+        scene.setOnKeyPressed(event -> handleKeyPress(event, configDTO.getKeyboardShortcuts().getMicToggleShortcut()));
+
         newStage.getIcons().add(new Image("logo.png"));
         newStage.setTitle("Syris AI Settings");
         newStage.setScene(scene);
@@ -113,6 +116,51 @@ public class SettingScreen {
         // Show the new stage
         newStage.show();
     }
+
+    private void handleKeyPress(KeyEvent event, String shortcut) {
+        // Parse shortcut string and check if it matches the pressed key combination
+        if (matchesShortcut(event, shortcut)) {
+            System.out.println("Shortcut " + shortcut + " pressed! Executing function...");
+            performAction();
+        }
+    }
+
+    private boolean matchesShortcut(KeyEvent event, String shortcut) {
+        String[] keys = shortcut.split("\\+");
+        boolean ctrl = false, alt = false, shift = false;
+        KeyCode mainKey = null;
+
+        for (String key : keys) {
+            key = key.trim();
+            switch (key) {
+                case "Ctrl":
+                    ctrl = true;
+                    break;
+                case "Alt":
+                    alt = true;
+                    break;
+                case "Shift":
+                    shift = true;
+                    break;
+                default:
+                    mainKey = KeyCode.valueOf(key.toUpperCase()); // Convert to KeyCode
+            }
+        }
+
+        // Check if the required modifiers are pressed
+        boolean ctrlPressed = event.isControlDown();
+        boolean altPressed = event.isAltDown();
+        boolean shiftPressed = event.isShiftDown();
+
+        // Compare with the actual pressed key
+        return (ctrl == ctrlPressed) && (alt == altPressed) && (shift == shiftPressed) && (event.getCode() == mainKey);
+    }
+
+    private void performAction() {
+        BackgroundIndicatorWidget.toggleRecording();
+        System.out.println("Function executed successfully!");
+    }
+
 
     private void setCurrentUserConfig() {
         String url = "http://localhost:8080/api/user-settings/" + UserPersistence.getCurrentLoginUser().getId();
@@ -477,8 +525,10 @@ public class SettingScreen {
         micInputLabel.setStyle("-fx-font-size: 14px; -fx-padding: 15 0 5 0;");
 
         // Style the mic progress bar
-//        micInputProgress.setPrefWidth(400);
-//        micInputProgress.setStyle("-fx-accent: #2ecc71;");
+        micInputProgress = new ProgressBar(0.1);
+
+        micInputProgress.setPrefWidth(400);
+        micInputProgress.setStyle("-fx-accent: #2ecc71;");
         micInputProgress.setVisible(true);
 
         // Add a help text
@@ -640,7 +690,7 @@ public class SettingScreen {
 
         toggleSaveButton();
 
-        saveUserConfigDetails(configDTO);
+        BackgroundIndicatorWidget.setConfig(saveUserConfigDetails(configDTO));
 
         // Show the confirmation message with slide in/out animation
         confirmationLabel.setVisible(true);

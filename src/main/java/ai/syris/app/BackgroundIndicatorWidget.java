@@ -9,6 +9,8 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
@@ -51,7 +53,7 @@ public class BackgroundIndicatorWidget extends Application {
     static Separator progressBar = new Separator();
     Stage settingStage = new Stage();
 
-    private boolean setCurrentUserConfig() {
+    private Config setCurrentUserConfig() {
         String url = "http://localhost:8080/api/user-settings/" + UserPersistence.getCurrentLoginUser().getId();
         OkHttpClient client = new OkHttpClient();
         ObjectMapper objectMapper = new ObjectMapper(); // Jackson for JSON conversion
@@ -70,34 +72,88 @@ public class BackgroundIndicatorWidget extends Application {
             }
 
             // Parse and return the updated Config object
-            return objectMapper.readValue(response.body().string(), Config.class).isWidgetPosition();
+            return objectMapper.readValue(response.body().string(), Config.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
+    private void handleKeyPress(KeyEvent event, String shortcut) {
+        // Parse shortcut string and check if it matches the pressed key combination
+        if (matchesShortcut(event, config.getMicToggleShortcut())) {
+            System.out.println("Shortcut " + shortcut + " pressed! Executing function...");
+            performAction();
+        }
+    }
+
+    private boolean matchesShortcut(KeyEvent event, String shortcut) {
+        String[] keys = shortcut.split("\\+");
+        boolean ctrl = false, alt = false, shift = false;
+        KeyCode mainKey = null;
+
+        for (String key : keys) {
+            key = key.trim();
+            switch (key) {
+                case "Ctrl":
+                    ctrl = true;
+                    break;
+                case "Alt":
+                    alt = true;
+                    break;
+                case "Shift":
+                    shift = true;
+                    break;
+                default:
+                    mainKey = KeyCode.valueOf(key.toUpperCase()); // Convert to KeyCode
+            }
+        }
+
+        // Check if the required modifiers are pressed
+        boolean ctrlPressed = event.isControlDown();
+        boolean altPressed = event.isAltDown();
+        boolean shiftPressed = event.isShiftDown();
+
+        // Compare with the actual pressed key
+        return (ctrl == ctrlPressed) && (alt == altPressed) && (shift == shiftPressed) && (event.getCode() == mainKey);
+    }
+
+    private void performAction() {
+        BackgroundIndicatorWidget.toggleRecording();
+        System.out.println("Function executed successfully!");
+    }
+
+
     public static Position loadUser() {
         ObjectMapper mapper = new ObjectMapper();
         try {
-            FileInputStream fileInputStream = new FileInputStream("position.json");
+            FileInputStream fileInputStream = new FileInputStream(new File("position.json"));
 
             if (fileInputStream.available() > 0) {
                 return mapper.readValue(fileInputStream, Position.class);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+//            e.printStackTrace();
         }
         return null;
     }
 
+    private static Config config = null;
+
+    public static void setConfig(Config configs) {
+        config = configs;
+    }
 
     private void loadWidget(Stage primaryStage) throws FileNotFoundException {
 
-        if (setCurrentUserConfig())
+        config = setCurrentUserConfig();
+
+        if (config.isWidgetPosition())
         {
             Position position = loadUser();
-            primaryStage.setX(position.getX());
-            primaryStage.setY(position.getY());
+            if (position != null){
+                primaryStage.setX(position.getX());
+                primaryStage.setY(position.getY());
+            }
         }
 
         // Create a rounded background pane
@@ -171,6 +227,8 @@ public class BackgroundIndicatorWidget extends Application {
         Scene scene = new Scene(background);
         scene.getStylesheets().add(createStyleSheet(contextMenuCss));
         scene.setFill(Color.TRANSPARENT);
+
+        scene.setOnKeyPressed(event -> handleKeyPress(event, config.getMicToggleShortcut()));
 
         primaryStage.initStyle(StageStyle.TRANSPARENT);
         primaryStage.setAlwaysOnTop(true);
