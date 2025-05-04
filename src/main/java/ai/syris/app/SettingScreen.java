@@ -21,10 +21,14 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import okhttp3.*;
 
 import javax.sound.sampled.*;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -40,6 +44,7 @@ public class SettingScreen {
     private final String SIDEBAR_BG_COLOR = "#2c3e50";
     private final String SIDEBAR_SELECTED_COLOR = "#1abc9c";
     private final String SIDEBAR_HOVER_COLOR = "#34495e";
+    VBox generalSettings = null;
 
     public void showConsole(Stage newStage) {
 
@@ -64,30 +69,6 @@ public class SettingScreen {
                 throw new RuntimeException(ex);
             }
         });
-
-        // General settings pane with enhanced styling
-        VBox generalSettings = new VBox(20);
-        generalSettings.setPadding(new Insets(25));
-        generalSettings.setStyle("-fx-background-color: white;");
-        setupEnhancedGeneralSettings(generalSettings, saveButton);
-
-        // Audio settings pane
-        VBox audioSettings = new VBox(20);
-        audioSettings.setPadding(new Insets(25));
-        audioSettings.setStyle("-fx-background-color: white;");
-        setupAudioSettings(audioSettings, saveButton);
-
-        // Keyboard shortcuts pane
-        VBox keyboardShortcuts = new VBox(20);
-        keyboardShortcuts.setPadding(new Insets(25));
-        keyboardShortcuts.setStyle("-fx-background-color: white;");
-        setupKeyboardShortcuts(keyboardShortcuts, saveButton);
-
-        // Speech model settings pane
-        VBox speechModelSettings = new VBox(20);
-        speechModelSettings.setPadding(new Insets(25));
-        speechModelSettings.setStyle("-fx-background-color: white;");
-        setupSpeechModelSettings(speechModelSettings, saveButton);
 
         // Create bottom bar for save button
         HBox bottomBar = new HBox();
@@ -163,33 +144,61 @@ public class SettingScreen {
 
 
     private void setCurrentUserConfig() {
-        String url = "http://localhost:8080/api/user-settings/" + UserPersistence.getCurrentLoginUser().getId();
-        OkHttpClient client = new OkHttpClient();
-        ObjectMapper objectMapper = new ObjectMapper(); // Jackson for JSON conversion
+        ObjectMapper objectMapper = new ObjectMapper();
+        String userId = String.valueOf(UserPersistence.getCurrentLoginUser().getId());
+        String token = UserPersistence.loadUser();
+        String urlString = "http://localhost:8080/api/user-settings/" + userId;
 
-        // Build request
-        Request request = new Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer " + UserPersistence.loadUser())
-                .addHeader("Content-Type", "application/json")
-                .build();
+        try {
+            // Open connection
+            URL url = new URL(urlString);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-        // Execute request
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("Unexpected response: " + response);
+            // Set up the request
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+            connection.setRequestProperty("Content-Type", "application/json");
+
+            // Check response code
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IOException("Unexpected response code: " + responseCode);
             }
 
-            // Parse and return the updated Config object
-            Config config = objectMapper.readValue(response.body().string(), Config.class);
+            // Read the response
+            StringBuilder responseJson = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "utf-8"))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    responseJson.append(line.trim());
+                }
+            }
+
+            // Deserialize JSON to Config object
+            Config config = objectMapper.readValue(responseJson.toString(), Config.class);
+
+            // Update configDTO
             configDTO.getGeneralSettings().setRememberPosition(config.isWidgetPosition());
-            configDTO.getGeneralSettings().setWidgetSize(config.getWidgetSize() == null ? configDTO.getGeneralSettings().getDefaultWidgetSize() : config.getWidgetSize());
-            configDTO.getKeyboardShortcuts().setMicToggleShortcut(config.getMicToggleShortcut() == null ? configDTO.getKeyboardShortcuts().getDefaultMicToggleShortcut() : config.getMicToggleShortcut());
+            configDTO.getGeneralSettings().setDefaultRememberPosition(config.isWidgetPosition());
+
+            configDTO.getGeneralSettings().setWidgetSize(
+                    config.getWidgetSize() == null ? configDTO.getGeneralSettings().getDefaultWidgetSize() : config.getWidgetSize()
+            );
+            configDTO.getGeneralSettings().setDefaultWidgetSize(
+                    config.getWidgetSize() == null ? configDTO.getGeneralSettings().getDefaultWidgetSize() : config.getWidgetSize()
+            );
+
+            configDTO.getKeyboardShortcuts().setMicToggleShortcut(
+                    config.getMicToggleShortcut() == null ? configDTO.getKeyboardShortcuts().getDefaultMicToggleShortcut() : config.getMicToggleShortcut()
+            );
+            configDTO.getKeyboardShortcuts().setDefaultMicToggleShortcut(
+                    config.getMicToggleShortcut() == null ? configDTO.getKeyboardShortcuts().getDefaultMicToggleShortcut() : config.getMicToggleShortcut()
+            );
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
-
     private VBox createEnhancedNavigationPanel() {
         // Main container for sidebar
         VBox navigationPanel = new VBox();
@@ -222,7 +231,7 @@ public class SettingScreen {
         menuItems.setPadding(new Insets(10, 0, 0, 0));
 
         // Create the content panels for each section
-        VBox generalSettings = new VBox(20);
+        generalSettings = new VBox(20);
         generalSettings.setPadding(new Insets(25));
         generalSettings.setStyle("-fx-background-color: white;");
         setupEnhancedGeneralSettings(generalSettings, saveButton);
@@ -244,10 +253,10 @@ public class SettingScreen {
 
         // Define menu items with icons and content panes
         List<NavigationItem> items = Arrays.asList(
-                new NavigationItem("General", "⚙️", generalSettings),
-                new NavigationItem("Audio", "🎤", audioSettings),
-                new NavigationItem("Keyboard shortcuts", "⌨️", keyboardShortcuts),
-                new NavigationItem("Speech model", "🔊", speechModelSettings)
+                new NavigationItem("General", "", generalSettings),
+                new NavigationItem("Audio", "", audioSettings),
+                new NavigationItem("Keyboard shortcuts", "", keyboardShortcuts),
+                new NavigationItem("Speech model", "", speechModelSettings)
         );
 
         // Reference to the currently selected menu item
@@ -525,7 +534,7 @@ public class SettingScreen {
         micInputLabel.setStyle("-fx-font-size: 14px; -fx-padding: 15 0 5 0;");
 
         // Style the mic progress bar
-        micInputProgress = new ProgressBar(0.1);
+        micInputProgress = new ProgressBar(0.0);
 
         micInputProgress.setPrefWidth(400);
         micInputProgress.setStyle("-fx-accent: #2ecc71;");
@@ -703,34 +712,47 @@ public class SettingScreen {
     }
 
     private Config saveUserConfigDetails(ConfigDTO configDTO) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
         Config entity = ConfigMapper.toEntity(configDTO, UserPersistence.getCurrentLoginUser());
-        String url = "http://localhost:8080/api/user-settings/" + UserPersistence.getCurrentLoginUser().getId();
-        OkHttpClient client = new OkHttpClient();
-        ObjectMapper objectMapper = new ObjectMapper(); // Jackson for JSON conversion
+        String token = UserPersistence.loadUser();
+        String urlString = "http://localhost:8080/api/user-settings/" + UserPersistence.getCurrentLoginUser().getId();
 
         // Convert Config object to JSON
         String jsonConfig = objectMapper.writeValueAsString(entity);
 
-        // Create request body
-        RequestBody body = RequestBody.create(MediaType.get("application/json"), jsonConfig);
+        // Open connection
+        URL url = new URL(urlString);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-        // Build request
-        Request request = new Request.Builder()
-                .url(url)
-                .put(body)
-                .addHeader("Authorization", "Bearer " + UserPersistence.loadUser())
-                .addHeader("Content-Type", "application/json")
-                .build();
+        // Configure request
+        connection.setRequestMethod("PUT");
+        connection.setRequestProperty("Authorization", "Bearer " + token);
+        connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        connection.setDoOutput(true);
 
-        // Execute request
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("Unexpected response: " + response);
-            }
-
-            // Parse and return the updated Config object
-            return objectMapper.readValue(response.body().string(), Config.class);
+        // Write JSON body
+        try (OutputStream os = connection.getOutputStream()) {
+            byte[] input = jsonConfig.getBytes("utf-8");
+            os.write(input, 0, input.length);
         }
+
+        // Handle response
+        int responseCode = connection.getResponseCode();
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            throw new IOException("Unexpected response code: " + responseCode);
+        }
+
+        // Read response
+        StringBuilder responseJson = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "utf-8"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                responseJson.append(line.trim());
+            }
+        }
+
+        // Convert JSON to Config object
+        return objectMapper.readValue(responseJson.toString(), Config.class);
     }
 
     private void toggleSaveButton() {
@@ -782,7 +804,10 @@ public class SettingScreen {
     }
 
     public static void updateProgressBar(double rms) {
-        micInputProgress.setProgress(rms);
+        micInputProgress.progressProperty().unbind();
+        Platform.runLater(() -> {
+            micInputProgress.setProgress(rms);
+        });
     }
 
 }

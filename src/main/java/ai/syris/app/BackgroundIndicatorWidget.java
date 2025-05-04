@@ -19,15 +19,10 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-
 import javax.sound.sampled.*;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.List;
 import java.util.Objects;
 
@@ -50,29 +45,43 @@ public class BackgroundIndicatorWidget extends Application {
     static Label usernameLabel = new Label();
     static Label micStatusLabel = new Label();
     static ContextMenu contextMenu = new ContextMenu();
-    static Separator progressBar = new Separator();
+    static ProgressBar progressBar = new ProgressBar();
     Stage settingStage = new Stage();
 
     private Config setCurrentUserConfig() {
-        String url = "http://localhost:8080/api/user-settings/" + UserPersistence.getCurrentLoginUser().getId();
-        OkHttpClient client = new OkHttpClient();
-        ObjectMapper objectMapper = new ObjectMapper(); // Jackson for JSON conversion
+        ObjectMapper objectMapper = new ObjectMapper();
+        String userId = String.valueOf(UserPersistence.getCurrentLoginUser().getId());
+        String token = UserPersistence.loadUser();
+        String urlString = "http://localhost:8080/api/user-settings/" + userId;
 
-        // Build request
-        Request request = new Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer " + UserPersistence.loadUser())
-                .addHeader("Content-Type", "application/json")
-                .build();
+        try {
+            // Open connection
+            URL url = new URL(urlString);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-        // Execute request
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("Unexpected response: " + response);
+            // Configure request
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+            connection.setRequestProperty("Content-Type", "application/json");
+
+            // Handle response
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IOException("Unexpected response code: " + responseCode);
             }
 
-            // Parse and return the updated Config object
-            return objectMapper.readValue(response.body().string(), Config.class);
+            // Read response
+            StringBuilder responseJson = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "utf-8"))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    responseJson.append(line.trim());
+                }
+            }
+
+            // Parse JSON into Config object
+            return objectMapper.readValue(responseJson.toString(), Config.class);
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -173,7 +182,14 @@ public class BackgroundIndicatorWidget extends Application {
 
         // Progress bar (as separator line)
         progressBar.setPrefWidth(200);
-        progressBar.setStyle("-fx-background: #48D1CC;");
+        progressBar.setPrefHeight(8);
+        progressBar.setStyle(
+                "-fx-accent: #f47373;" +
+                        "-fx-background-color: #86A7B5;" +
+                        "-fx-background-radius: 10;" +
+                        "-fx-background-insets: 0;" +
+                        "-fx-padding: 0;"
+        );
 
         // Create a vertical box for the username, mic status, and progress bar
         VBox userInfoBox = new VBox(5);
@@ -317,7 +333,7 @@ public class BackgroundIndicatorWidget extends Application {
             micStatusLabel.setText("Tap to switch Mic On");
             userIconView.setOpacity(1.0);
             progressBar.setVisible(true);
-            progressBar.setStyle("-fx-background: #48D1CC;");
+//            progressBar.setStyle("-fx-background: #48D1CC;");
             RecordingState.getInstance().toggleRecording();
         } else {
             if (Objects.isNull(RecordingState.getInstance().getTargetDataLine())) {
@@ -326,14 +342,15 @@ public class BackgroundIndicatorWidget extends Application {
                 micStatusLabel.setText("Recording... Tap to stop");
                 userIconView.setOpacity(0.7); // Visual indication of active recording
                 progressBar.setVisible(true);
-                progressBar.setStyle("-fx-background: #00CC44;"); // Active recording color
+//                progressBar.setStyle("-fx-background: #00CC44;"); // Active recording color
                 RecordingState.getInstance().toggleRecording();
             }
         }
     }
 
     public static void updateProgressBarWidget(double rms) {
-        Platform.runLater(() -> progressBar.setPrefWidth(rms));
+        progressBar.progressProperty().unbind();
+        Platform.runLater(() -> progressBar.setProgress(rms));
     }
 
     public static void alertDialog(){
@@ -360,7 +377,7 @@ public class BackgroundIndicatorWidget extends Application {
     public static void stopRecoding() {
         micStatusLabel.setText("Tap to switch Mic On");
         userIconView.setOpacity(1.0);
-        progressBar.setStyle("-fx-background: #48D1CC;");
+//        progressBar.setStyle("-fx-background: #48D1CC;");
     }
 
     /**

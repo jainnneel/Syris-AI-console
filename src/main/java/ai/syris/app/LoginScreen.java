@@ -15,10 +15,14 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.scene.control.*;
-import okhttp3.*;
 
 import javax.sound.sampled.*;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 
 public class LoginScreen extends Application {
@@ -28,6 +32,15 @@ public class LoginScreen extends Application {
 
     @Override
     public void start(Stage primaryStage) throws LineUnavailableException {
+        var listView = new ListView<String>();
+
+        ModuleLayer.boot()
+                .modules()
+                .stream()
+                .map(Module::getName)
+                .sorted()
+                .forEach(listView.getItems()::add);
+
         if (UserPersistence.userExists()) {
             validateStoredUser(primaryStage);
         } else {
@@ -48,28 +61,44 @@ public class LoginScreen extends Application {
     }
 
     private boolean checkUserValidity(String token) {
-        OkHttpClient client = new OkHttpClient();
+        ObjectMapper objectMapper = new ObjectMapper();
+        String urlString = "http://localhost:8080/api/users/current";
 
-        // Build Request
-        Request request = new Request.Builder()
-                .url("http://localhost:8080/api/users/current") // Change URL if needed
-                .addHeader("Authorization", "Bearer "+token)
-                .build();
+        try {
+            // Open connection
+            URL url = new URL(urlString);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-        // Execute Request
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                System.out.println("Request failed: " + response.code());
+            // Configure request
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+
+            // Handle response
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                System.out.println("Request failed: " + responseCode);
                 return false;
-            } else {
-                System.out.println("Response Code: " + response.code());
-
-                String responseJson = response.body().string();
-                System.out.println(responseJson);
-                User user = new ObjectMapper().readValue(responseJson, User.class);
-                UserPersistence.setCurrentLoginUser(user);
-                return true;
             }
+
+            System.out.println("Response Code: " + responseCode);
+
+            // Read response
+            StringBuilder responseJson = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "utf-8"))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    responseJson.append(line.trim());
+                }
+            }
+
+            System.out.println(responseJson);
+
+            // Convert JSON to User object
+            User user = objectMapper.readValue(responseJson.toString(), User.class);
+            UserPersistence.setCurrentLoginUser(user);
+
+            return true;
+
         } catch (IOException e) {
             e.printStackTrace();
             return false;
@@ -176,35 +205,53 @@ public class LoginScreen extends Application {
     }
 
     private boolean sendLoginRequest(LoginDTO loginDTO) {
-        OkHttpClient client = new OkHttpClient();
+        try {
+            // URL and Connection Setup
+            URL url = new URL("http://localhost:8080/auth/login");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-        // JSON Request Body
-        String json = "{\"username\":\""+loginDTO.getEmail()+"\", \"password\":\""+loginDTO.getPassword()+"\"}";
+            // Configure Connection
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            connection.setDoOutput(true);
 
-        // Create Request Body
-        RequestBody body = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
+            // JSON Request Body
+            String json = "{\"username\":\"" + loginDTO.getEmail() + "\", \"password\":\"" + loginDTO.getPassword() + "\"}";
 
-        // Build Request
-        Request request = new Request.Builder()
-                .url("http://localhost:8080/auth/login") // Change URL if needed
-                .post(body)
-                .build();
+            // Write Request Body
+            try (OutputStream os = connection.getOutputStream()) {
+                byte[] input = json.getBytes("utf-8");
+                os.write(input, 0, input.length);
+            }
 
-        // Execute Request
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                System.out.println("Request failed: " + response.code());
-                return false;
-            } else {
-                System.out.println("Response Code: " + response.code());
+            // Read Response
+            int responseCode = connection.getResponseCode();
+            System.out.println("Response Code: " + responseCode);
 
-                String responseJson = response.body().string();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                // Read response body
+                StringBuilder responseJson = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "utf-8"))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        responseJson.append(line.trim());
+                    }
+                }
+
                 System.out.println(responseJson);
-                AuthResponse authResponse = new ObjectMapper().readValue(responseJson, AuthResponse.class);
+
+                // Convert response JSON to AuthResponse
+                AuthResponse authResponse = new ObjectMapper().readValue(responseJson.toString(), AuthResponse.class);
+
                 UserPersistence.saveUser(authResponse.getToken());
                 checkUserValidity(authResponse.getToken());
+
                 return true;
+            } else {
+                System.out.println("Request failed: " + responseCode);
+                return false;
             }
+
         } catch (IOException e) {
             e.printStackTrace();
             return false;

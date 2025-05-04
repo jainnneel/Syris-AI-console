@@ -7,11 +7,24 @@
     <groupId>ai.syris.app</groupId>
     <artifactId>Syris-AI-console</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
 
     <properties>
+        <app.name>My Application Name</app.name>
+        <app.version>1.0.0</app.version>
+        <vendor.name>My Company Name</vendor.name>
+        <copyright>Copyright@2025</copyright>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+<!--        <maven.compiler.source>21</maven.compiler.source>-->
+<!--        <maven.compiler.target>21</maven.compiler.target>-->
+        <javafxVersion>21.0.1</javafxVersion>
+        <libsDir>${project.build.directory}/artifacts/libs</libsDir>
+        <javafxModsDir>${project.build.directory}/artifacts/javafx</javafxModsDir>
+
     </properties>
 
     <dependencies>
@@ -40,23 +53,17 @@
         </dependency>
 
         <dependency>
-            <groupId>org.glassfish.tyrus</groupId>
-            <artifactId>tyrus-client</artifactId>
-            <version>1.19</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.glassfish.tyrus</groupId>
-            <artifactId>tyrus-container-grizzly-client</artifactId>
-            <version>1.19</version>
-        </dependency>
-
-        <!-- Java Sound API (part of Java SE, but adding this for completeness) -->
-        <dependency>
             <groupId>org.openjfx</groupId>
-            <artifactId>javafx-media</artifactId>
-            <version>17</version>
+            <artifactId>javafx-fxml</artifactId>
+            <version>21</version>
         </dependency>
+
+<!--        &lt;!&ndash; Java Sound API (part of Java SE, but adding this for completeness) &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>org.openjfx</groupId>-->
+<!--            <artifactId>javafx-media</artifactId>-->
+<!--            <version>17</version>-->
+<!--        </dependency>-->
         <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -64,26 +71,374 @@
             <version>2.18.2</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.glassfish.tyrus/tyrus-client -->
         <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp</artifactId>
-            <version>4.11.0</version> <!-- Use latest version -->
+            <groupId>org.glassfish.tyrus</groupId>
+            <artifactId>tyrus-client</artifactId>
+            <version>2.2.0</version>
         </dependency>
-
 
     </dependencies>
 
+
     <build>
+        <pluginManagement>
+            <!-- Lock in versions. -->
+            <plugins>
+                <plugin>
+                    <artifactId>maven-clean-plugin</artifactId>
+                    <version>3.3.2</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.3.1</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.11.0</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.3.0</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.6.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.panteleyev</groupId>
+                    <artifactId>jpackage-maven-plugin</artifactId>
+                    <version>1.6.0</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
         <plugins>
+            <!--
+              Configure JAR plugin to set Main-Class entry in the JAR's manifest. Also, put the JAR
+              file in the same directory as the non-JavaFX dependencies to make using jpackage easier.
+            -->
             <plugin>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.1</version>
+                <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
-                    <mainClass>ai.syris.app.LoginScreen</mainClass>
+                    <archive>
+                        <manifest>
+                            <mainClass>ai.syris.app.LoginScreen</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!-- Copy dependencies into project-local directories to make using jpackage easier. -->
+            <plugin>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <!--
+                      Put JavaFX JARs in their own directory so they are not included in the input directory
+                      and can easily be placed on the module-path of jpackage.
+                    -->
+                    <execution>
+                        <id>copy-javafx-deps</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${javafxModsDir}</outputDirectory>
+                            <includeGroupIds>org.openjfx</includeGroupIds>
+                        </configuration>
+                    </execution>
+                    <!--
+                      Put all non-JavaFX JARs in a separate directory to use with the input argument
+                      of jpackage. The project JAR will be placed here as well.
+                    -->
+                    <execution>
+                        <id>copy-nonjavafx-deps</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${libsDir}</outputDirectory>
+                            <excludeGroupIds>org.openjfx</excludeGroupIds>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Common jpackage configurations. -->
+            <plugin>
+                <groupId>org.panteleyev</groupId>
+                <artifactId>jpackage-maven-plugin</artifactId>
+                <configuration>
+                    <modulePaths>
+                        <modulePath>${javafxModsDir}</modulePath>
+                    </modulePaths>
+                    <!--
+                      Must explicitly add modules since project code is not modular, meaning there's
+                      no module-info.java file with requires directives.
+
+                      Include the jdk.localedata module to ensure internationalization works. You can filter
+                      which locales are included via jlink options.
+                    -->
+                    <addModules>javafx.controls,jdk.localedata</addModules>
+                    <input>${libsDir}</input>
+                    <mainJar>${project.name}-${project.version}.jar</mainJar>
+                    <temp>${project.build.directory}/jpackage/temp</temp>
                 </configuration>
             </plugin>
         </plugins>
+
     </build>
+
+    <profiles>
+
+        <profile>
+            <id>windows</id>
+            <build>
+                <plugins>
+                    <!-- Windows-specific jpackage configurations. -->
+                    <plugin>
+                        <groupId>org.panteleyev</groupId>
+                        <artifactId>jpackage-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>windows-msi</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>jpackage</goal>
+                                </goals>
+                                <configuration>
+                                    <appVersion>1.0.0</appVersion>
+                                    <type>MSI</type>
+                                    <destination>${project.build.directory}/jpackage/windows-msi</destination>
+                                    <winPerUserInstall>true</winPerUserInstall>
+                                    <winDirChooser>true</winDirChooser>
+                                    <winUpgradeUuid>7c59c875-1ad3-4042-9c9f-fed5fc3f8ab9</winUpgradeUuid>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+<!--    <build>-->
+<!--        <finalName>${app.name}-${app.version}</finalName>-->
+<!--        <pluginManagement>-->
+<!--            <plugins>-->
+
+<!--                <plugin>-->
+<!--                    <groupId>com.github.akman</groupId>-->
+<!--                    <artifactId>jpackage-maven-plugin</artifactId>-->
+<!--                    <version>0.1.5</version>-->
+<!--                    <executions>-->
+<!--                        <execution>-->
+<!--                            <goals>-->
+<!--                                <goal>jpackage</goal> -->
+<!--                            </goals>-->
+<!--                        </execution>-->
+<!--                    </executions>-->
+<!--                    <configuration>-->
+<!--                        <name>${app.name}</name>-->
+<!--                        <appversion>${app.version}</appversion>-->
+<!--                        <copyright>${copyright}</copyright>-->
+<!--                        <vendor>${vendor.name}</vendor>-->
+<!--                        <mainjar>Syris-AI-console-1.0-SNAPSHOT-shaded.jar</mainjar>-->
+<!--                        <input>target/</input>-->
+<!--                        <mainclass>ai.syris.app.LoginScreen</mainclass>-->
+<!--                        <type>MSI</type>-->
+<!--                        <javaoptions>&#45;&#45;enable-preview</javaoptions>-->
+<!--                        <dest>.</dest>-->
+<!--&lt;!&ndash;                        <icon>${project.basedir}/src/main/resources/app-icon.ico</icon>&ndash;&gt;-->
+<!--                        <winconsole>false</winconsole>-->
+<!--                        <winmenu>true</winmenu>-->
+<!--                        <winshortcut>true</winshortcut>-->
+<!--                    </configuration>-->
+<!--                </plugin>-->
+
+<!--            </plugins>-->
+<!--        </pluginManagement>-->
+
+<!--        <plugins>-->
+
+<!--            <plugin>-->
+<!--                <groupId>org.apache.maven.plugins</groupId>-->
+<!--                <artifactId>maven-compiler-plugin</artifactId>-->
+<!--                <version>3.11.0</version>-->
+<!--                <configuration>-->
+<!--                    <source>${maven.compiler.source}</source>-->
+<!--                    <target>${maven.compiler.source}</target>-->
+<!--                    <release>${maven.compiler.source}</release>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
+
+<!--            <plugin>-->
+<!--                <groupId>org.openjfx</groupId>-->
+<!--                <artifactId>javafx-maven-plugin</artifactId>-->
+<!--                <version>0.0.4</version>-->
+<!--                <configuration>-->
+<!--                    <mainClass>ai.syris.app.LoginScreen</mainClass>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
+<!--            <plugin>-->
+<!--                <groupId>org.apache.maven.plugins</groupId>-->
+<!--                <artifactId>maven-shade-plugin</artifactId>-->
+<!--                <version>3.2.0</version>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>package</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>shade</goal>-->
+<!--                        </goals>-->
+<!--                        <configuration>-->
+<!--                            <transformers>-->
+<!--                                <transformer-->
+<!--                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">-->
+<!--                                    <mainClass>ai.syris.app.LoginScreen</mainClass>-->
+<!--                                </transformer>-->
+<!--                            </transformers>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
+
+
+<!--            &lt;!&ndash;            <plugin>&ndash;&gt;-->
+<!--&lt;!&ndash;                <groupId>org.apache.maven.plugins</groupId>&ndash;&gt;-->
+<!--&lt;!&ndash;                <artifactId>maven-assembly-plugin</artifactId>&ndash;&gt;-->
+<!--&lt;!&ndash;                <version>3.3.0</version>&ndash;&gt;-->
+<!--&lt;!&ndash;                <configuration>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <archive>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <manifest>&ndash;&gt;-->
+<!--&lt;!&ndash;                            <mainClass>ai.syris.app.LoginScreen</mainClass>&ndash;&gt;-->
+<!--&lt;!&ndash;                        </manifest>&ndash;&gt;-->
+<!--&lt;!&ndash;                    </archive>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <descriptorRefs>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <descriptorRef>jar-with-dependencies</descriptorRef>&ndash;&gt;-->
+<!--&lt;!&ndash;                    </descriptorRefs>&ndash;&gt;-->
+<!--&lt;!&ndash;                </configuration>&ndash;&gt;-->
+<!--&lt;!&ndash;                <executions>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <execution>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <id>make-assembly</id>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <phase>package</phase>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <goals>&ndash;&gt;-->
+<!--&lt;!&ndash;                            <goal>single</goal>&ndash;&gt;-->
+<!--&lt;!&ndash;                        </goals>&ndash;&gt;-->
+<!--&lt;!&ndash;                    </execution>&ndash;&gt;-->
+<!--&lt;!&ndash;                </executions>&ndash;&gt;-->
+<!--&lt;!&ndash;            </plugin>&ndash;&gt;-->
+
+<!--            <plugin>-->
+<!--                <groupId>com.github.akman</groupId>-->
+<!--                <artifactId>jpackage-maven-plugin</artifactId>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <id>jpackage-installer</id>-->
+<!--                        <phase>verify</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>jpackage</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
+<!--        </plugins>-->
+<!--    </build>-->
+
+
+
+
+    <!--    <build>-->
+<!--        <plugins>-->
+<!--            <plugin>-->
+<!--                <groupId>org.openjfx</groupId>-->
+<!--                <artifactId>javafx-maven-plugin</artifactId>-->
+<!--                <version>0.0.1</version>-->
+<!--                <configuration>-->
+<!--                    <mainClass>ai.syris.app.LoginScreen</mainClass>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
+
+
+
+
+<!--            &lt;!&ndash; JLink Plugin to create custom runtime &ndash;&gt;-->
+<!--&lt;!&ndash;            <plugin>&ndash;&gt;-->
+<!--&lt;!&ndash;                <groupId>org.apache.maven.plugins</groupId>&ndash;&gt;-->
+<!--&lt;!&ndash;                <artifactId>maven-jlink-plugin</artifactId>&ndash;&gt;-->
+<!--&lt;!&ndash;                <version>3.2.0</version>&ndash;&gt;-->
+<!--&lt;!&ndash;                <executions>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <execution>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <id>create-runtime</id>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <goals>&ndash;&gt;-->
+<!--&lt;!&ndash;                            <goal>jlink</goal>&ndash;&gt;-->
+<!--&lt;!&ndash;                        </goals>&ndash;&gt;-->
+<!--&lt;!&ndash;                    </execution>&ndash;&gt;-->
+<!--&lt;!&ndash;                </executions>&ndash;&gt;-->
+<!--&lt;!&ndash;                <configuration>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <addModules>&ndash;&gt;-->
+<!--&lt;!&ndash;                        java.base,javafx.controls,javafx.graphics,java.desktop,javax.websocket.api&ndash;&gt;-->
+<!--&lt;!&ndash;                    </addModules>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <noHeaderFiles>true</noHeaderFiles>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <noManPages>true</noManPages>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <outputDirectory>${project.build.directory}/my-runtime</outputDirectory>&ndash;&gt;-->
+<!--&lt;!&ndash;                </configuration>&ndash;&gt;-->
+<!--&lt;!&ndash;            </plugin>&ndash;&gt;-->
+
+<!--&lt;!&ndash;            &lt;!&ndash; JPackage Plugin to create MSI installer &ndash;&gt;&ndash;&gt;-->
+<!--&lt;!&ndash;            <plugin>&ndash;&gt;-->
+<!--&lt;!&ndash;                <groupId>org.panteleyev</groupId>&ndash;&gt;-->
+<!--&lt;!&ndash;                <artifactId>jpackage-maven-plugin</artifactId>&ndash;&gt;-->
+<!--&lt;!&ndash;                <version>1.6.0</version>&ndash;&gt;-->
+<!--&lt;!&ndash;                <executions>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <execution>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <id>package-msi</id>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <goals>&ndash;&gt;-->
+<!--&lt;!&ndash;                            <goal>jpackage</goal>&ndash;&gt;-->
+<!--&lt;!&ndash;                        </goals>&ndash;&gt;-->
+<!--&lt;!&ndash;                    </execution>&ndash;&gt;-->
+<!--&lt;!&ndash;                </executions>&ndash;&gt;-->
+<!--&lt;!&ndash;                <configuration>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <mainClass>ai.syris.app.LoginScreen</mainClass>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <runtimeImage>${project.build.directory}/my-runtime</runtimeImage>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <destination>${project.build.directory}/output</destination>&ndash;&gt;-->
+
+<!--&lt;!&ndash;                    <winShortcut>true</winShortcut>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <winMenu>true</winMenu>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <icon>${project.basedir}/src/main/resources/icon.ico</icon> &lt;!&ndash; Optional: Add an icon &ndash;&gt;&ndash;&gt;-->
+<!--&lt;!&ndash;                </configuration>&ndash;&gt;-->
+<!--&lt;!&ndash;            </plugin>&ndash;&gt;-->
+
+<!--&lt;!&ndash;            <plugin>&ndash;&gt;-->
+<!--&lt;!&ndash;                <groupId>org.panteleyev</groupId>&ndash;&gt;-->
+<!--&lt;!&ndash;                <artifactId>jpackage-maven-plugin</artifactId>&ndash;&gt;-->
+<!--&lt;!&ndash;                <version>1.6.0</version>&ndash;&gt;-->
+<!--&lt;!&ndash;                <executions>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <execution>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <id>package-msi</id>&ndash;&gt;-->
+<!--&lt;!&ndash;                        <goals>&ndash;&gt;-->
+<!--&lt;!&ndash;                            <goal>jpackage</goal>&ndash;&gt;-->
+<!--&lt;!&ndash;                        </goals>&ndash;&gt;-->
+<!--&lt;!&ndash;                    </execution>&ndash;&gt;-->
+<!--&lt;!&ndash;                </executions>&ndash;&gt;-->
+<!--&lt;!&ndash;                <configuration>&ndash;&gt;-->
+<!--&lt;!&ndash;&lt;!&ndash;                    <appName>Syris</appName>&ndash;&gt;&ndash;&gt;-->
+<!--&lt;!&ndash;                    <mainJar>${project.build.finalName}.jar</mainJar>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <mainClass>ai.syris.app.LoginScreen1</mainClass>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <runtimeImage>${java.home}</runtimeImage>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <destination>${project.build.directory}/output</destination>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <input>${project.build.directory}</input>  &lt;!&ndash; 🔹 FIXED: Added input directory &ndash;&gt;&ndash;&gt;-->
+<!--&lt;!&ndash;                    <appVersion>1.0.0</appVersion>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <winShortcut>true</winShortcut>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <winConsole>true</winConsole>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <winMenu>true</winMenu>&ndash;&gt;-->
+<!--&lt;!&ndash;                </configuration>&ndash;&gt;-->
+<!--&lt;!&ndash;            </plugin>&ndash;&gt;-->
+
+
+<!--        </plugins>-->
+<!--    </build>-->
 
 </project>
